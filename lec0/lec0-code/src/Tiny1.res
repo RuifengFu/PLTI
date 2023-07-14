@@ -42,6 +42,17 @@ module Nameless = {
   }
 }
 
+module Indexed = {
+  type rec expr = 
+  | Cst(int)
+  | Add(expr, expr)
+  | Mul(expr, expr)
+  | Var({bind: int, stack_indexed: int})   
+  | Let(expr, expr)
+
+
+}
+
 // Compile expr with variable names to expr with indices
 type cenv = list<string>
 
@@ -87,76 +98,6 @@ module Instr1 = {
 
 let app = List.append
 
-let rec compile2 = (expr: Nameless.expr): list<Instr1.instr> => {
-  switch expr {
-  | Cst(i) => list{Cst(i)}
-  | Add(a, b) => app(app(compile2(a), compile2(b)), list{Add})
-  | Mul(a, b) => app(app(compile2(a), compile2(b)), list{Mul})
-  | Var(n) => list{Var(n)}
-  | Let(a, b) => app(app(compile2(a), compile2(b)), list{Swap, Pop})
-  | _ => assert false
-  }
-}
-
-let rec compile3 = (expr: Expr1.expr, cenv): list<Instr1.instr> => {
-  switch expr {
-  | Cst(i) => list{Cst(i)}
-  | Add(a, b) => app(app(compile3(a, cenv), compile3(b, cenv)), list{Add})
-  | Mul(a, b) => app(app(compile3(a, cenv), compile3(b, cenv)), list{Mul})
-  | Var(str) => list{Var(index(cenv, str))}
-  | Let(str, a, b) =>
-    app(app(compile3(a, cenv), compile3(b, app(cenv, list{str}))), list{Swap, Pop})
-  | _ => assert false
-  }
-}
-
-module Test1 = {
-  let test_compile = (src: Expr1.expr) => {
-    let compiled = compile2(compile1(src, list{}))
-    let computed = Instr1.eval(compiled, list{})
-    Js.log(j`$computed`)
-    assert (computed == Expr1.eval(src, list{}))
-  }
-
-  let test_compile2 = (src: Expr1.expr) => {
-    let compiled = compile3(src, list{})
-    let computed = Instr1.eval(compiled, list{})
-    Js.log(j`$computed`)
-    assert (computed == Expr1.eval(src, list{}))
-  }
-
-  let tests = [
-    Expr1.Cst(42),
-    Add(Cst(1), Cst(2)),
-    Mul(Cst(1), Cst(2)),
-    Add(Add(Cst(1), Cst(2)), Cst(3)),
-    Mul(Mul(Cst(1), Cst(2)), Cst(3)),
-    Add(Mul(Cst(1), Cst(2)), Cst(3)),
-    Mul(Add(Cst(1), Cst(2)), Cst(3)),
-    Let("x", Cst(2), Add(Var("x"), Var("x"))),
-    Let("x", Cst(3), Mul(Add(Var("x"), Cst(1)), Cst(2))),
-    Let("x", Cst(5), Mul(Var("x"), Cst(2))),
-    Let("x", Cst(1), Let("y", Cst(4), Add(Var("x"), Var("y")))),
-  ]
-
-  let test1 = () => {
-    Belt.Array.forEachWithIndex(tests, (i, t) => {
-      test_compile(t)
-      let i = i + 1
-      Js.log(j`Test1: test $i passed`)
-    })
-  }
-  let test2 = () => {
-    Belt.Array.forEachWithIndex(tests, (i, t) => {
-      test_compile2(t)
-      let i = i + 1
-      Js.log(j`Test1: test $i passed`)
-    })
-  }
-}
-
-Test1.test1()
-Test1.test2()
 
 // Homework2 : Compile Nameless.expr to Machine Instructions
 let concatMany = Belt.List.concatMany
@@ -184,11 +125,11 @@ module NamelessToStackVM = {
   let scompile = expr => {
     let rec go = (expr: Nameless.expr, senv: senv): list<Instr1.instr> => {
       switch expr {
-      | Cst(i) => list{Cst(i)}
-      | Var(s) => list{Var(sindex(senv, s))}
-      | Add(e1, e2) => concatMany([go(e1, senv), go(e2, list{Stmp, ...senv}), list{Add}])
-      | Mul(e1, e2) => concatMany([go(e1, senv), go(e2, list{Stmp, ...senv}), list{Mul}])
-      | Let(e1, e2) => concatMany([go(e1, senv), go(e2, list{Slocal, ...senv}), list{Swap, Pop}])
+        | Cst(i) => list{ Cst(i) }
+        | Var(s) => list{ Var(sindex(senv, s)) }
+        | Add(e1, e2) => concatMany([ go(e1, senv), go(e2, list{Stmp,... senv}), list{ Add } ])
+        | Mul(e1, e2) => concatMany([ go(e1, senv), go(e2, list{Stmp,... senv}), list{ Mul } ])
+        | Let(e1, e2) => concatMany( [go(e1, senv), go(e2, list{Slocal,... senv}), list{ Swap, Pop } ])
       }
     }
     go(expr, list{})
@@ -229,3 +170,67 @@ module ExprToStackMV = {
     go(expr, list{})
   }
 }
+
+
+
+module Test1 = {
+  let test_convert = (src: Expr1.expr) => {
+    let computed = Nameless.eval(compile1(src, list{}), list{})
+    assert(computed == Expr1.eval(src, list{}))
+  }
+
+  let test_compile = (src: Expr1.expr) => {
+    let compiled = NamelessToStackVM.scompile(compile1(src, list{}))
+    let computed = Instr1.eval(compiled, list{})
+    Js.log(j`$computed`)
+    assert (computed == Expr1.eval(src, list{}))
+  }
+
+  let test_compile2 = (src: Expr1.expr) => {
+    let compiled = ExprToStackMV.scompile(src)
+    let computed = Instr1.eval(compiled, list{})
+    Js.log(j`$computed`)
+    assert (computed == Expr1.eval(src, list{}))
+  }
+
+  let tests = [
+    Expr1.Cst(42),
+    Add(Cst(1), Cst(2)),
+    Mul(Cst(1), Cst(2)),
+    Add(Add(Cst(1), Cst(2)), Cst(3)),
+    Mul(Mul(Cst(1), Cst(2)), Cst(3)),
+    Add(Mul(Cst(1), Cst(2)), Cst(3)),
+    Mul(Add(Cst(1), Cst(2)), Cst(3)),
+    Let("x", Cst(2), Add(Var("x"), Var("x"))),
+    Let("x", Cst(3), Mul(Add(Var("x"), Cst(1)), Cst(2))),
+    Let("x", Cst(5), Mul(Var("x"), Cst(2))),
+    Let("x", Cst(1), Let("y", Cst(4), Add(Var("x"), Var("y")))),
+  ]
+
+  let test_convert = () => {
+    Belt.Array.forEachWithIndex(tests, (i, t) => {
+      test_convert(t)
+      let i = i + 1
+      Js.log3("Test Convert: test", i, "passed")
+    })
+  }
+
+  let test1 = () => {
+    Belt.Array.forEachWithIndex(tests, (i, t) => {
+      test_compile(t)
+      let i = i + 1
+      Js.log3("Test1: test", i, "passed")
+    })
+  }
+  let test2 = () => {
+    Belt.Array.forEachWithIndex(tests, (i, t) => {
+      test_compile2(t)
+      let i = i + 1
+      Js.log3("Test2: test", i, "passed")
+    })
+  }
+}
+
+Test1.test_convert()
+Test1.test1()
+Test1.test2()

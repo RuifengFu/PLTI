@@ -66,6 +66,8 @@ var Nameless = {
   $$eval: $$eval$1
 };
 
+var Indexed = {};
+
 function index(cenv, x) {
   var _cenv = cenv;
   var _n = 0;
@@ -209,7 +211,7 @@ function $$eval$2(_instrs, _stk) {
           RE_EXN_ID: "Assert_failure",
           _1: [
             "Tiny1.res",
-            83,
+            94,
             11
           ],
           Error: new Error()
@@ -221,91 +223,220 @@ var Instr1 = {
   $$eval: $$eval$2
 };
 
-function compile2(expr) {
-  switch (expr.TAG | 0) {
-    case /* Cst */0 :
-        return {
-                hd: {
-                  TAG: /* Cst */0,
-                  _0: expr._0
-                },
-                tl: /* [] */0
-              };
-    case /* Add */1 :
-        return List.append(List.append(compile2(expr._0), compile2(expr._1)), {
-                    hd: /* Add */0,
-                    tl: /* [] */0
-                  });
-    case /* Mul */2 :
-        return List.append(List.append(compile2(expr._0), compile2(expr._1)), {
-                    hd: /* Mul */1,
-                    tl: /* [] */0
-                  });
-    case /* Var */3 :
-        return {
-                hd: {
-                  TAG: /* Var */1,
-                  _0: expr._0
-                },
-                tl: /* [] */0
-              };
-    case /* Let */4 :
-        return List.append(List.append(compile2(expr._0), compile2(expr._1)), {
-                    hd: /* Swap */3,
-                    tl: {
-                      hd: /* Pop */2,
-                      tl: /* [] */0
-                    }
-                  });
-    
-  }
+function sindex(senv, i) {
+  var _senv = senv;
+  var _i = i;
+  var _acc = 0;
+  while(true) {
+    var acc = _acc;
+    var i$1 = _i;
+    var senv$1 = _senv;
+    if (senv$1) {
+      if (senv$1.hd) {
+        _acc = acc + 1 | 0;
+        _senv = senv$1.tl;
+        continue ;
+      }
+      if (i$1 === 0) {
+        return acc;
+      }
+      _acc = acc + 1 | 0;
+      _i = i$1 - 1 | 0;
+      _senv = senv$1.tl;
+      continue ;
+    }
+    throw {
+          RE_EXN_ID: "Not_found",
+          Error: new Error()
+        };
+  };
 }
 
-function compile3(expr, cenv) {
-  switch (expr.TAG | 0) {
-    case /* Cst */0 :
-        return {
-                hd: {
-                  TAG: /* Cst */0,
-                  _0: expr._0
-                },
-                tl: /* [] */0
-              };
-    case /* Add */1 :
-        return List.append(List.append(compile3(expr._0, cenv), compile3(expr._1, cenv)), {
-                    hd: /* Add */0,
-                    tl: /* [] */0
-                  });
-    case /* Mul */2 :
-        return List.append(List.append(compile3(expr._0, cenv), compile3(expr._1, cenv)), {
-                    hd: /* Mul */1,
-                    tl: /* [] */0
-                  });
-    case /* Var */3 :
-        return {
-                hd: {
-                  TAG: /* Var */1,
-                  _0: index(cenv, expr._0)
-                },
-                tl: /* [] */0
-              };
-    case /* Let */4 :
-        return List.append(List.append(compile3(expr._1, cenv), compile3(expr._2, List.append(cenv, {
-                                hd: expr._0,
-                                tl: /* [] */0
-                              }))), {
-                    hd: /* Swap */3,
-                    tl: {
-                      hd: /* Pop */2,
-                      tl: /* [] */0
-                    }
-                  });
-    
+function scompile(expr) {
+  var go = function (expr, senv) {
+    switch (expr.TAG | 0) {
+      case /* Cst */0 :
+          return {
+                  hd: {
+                    TAG: /* Cst */0,
+                    _0: expr._0
+                  },
+                  tl: /* [] */0
+                };
+      case /* Add */1 :
+          return Belt_List.concatMany([
+                      go(expr._0, senv),
+                      go(expr._1, {
+                            hd: /* Stmp */1,
+                            tl: senv
+                          }),
+                      {
+                        hd: /* Add */0,
+                        tl: /* [] */0
+                      }
+                    ]);
+      case /* Mul */2 :
+          return Belt_List.concatMany([
+                      go(expr._0, senv),
+                      go(expr._1, {
+                            hd: /* Stmp */1,
+                            tl: senv
+                          }),
+                      {
+                        hd: /* Mul */1,
+                        tl: /* [] */0
+                      }
+                    ]);
+      case /* Var */3 :
+          return {
+                  hd: {
+                    TAG: /* Var */1,
+                    _0: sindex(senv, expr._0)
+                  },
+                  tl: /* [] */0
+                };
+      case /* Let */4 :
+          return Belt_List.concatMany([
+                      go(expr._0, senv),
+                      go(expr._1, {
+                            hd: /* Slocal */0,
+                            tl: senv
+                          }),
+                      {
+                        hd: /* Swap */3,
+                        tl: {
+                          hd: /* Pop */2,
+                          tl: /* [] */0
+                        }
+                      }
+                    ]);
+      
+    }
+  };
+  return go(expr, /* [] */0);
+}
+
+var NamelessToStackVM = {
+  sindex: sindex,
+  scompile: scompile
+};
+
+function sindex$1(senv, s) {
+  var _senv = senv;
+  var _acc = 0;
+  while(true) {
+    var acc = _acc;
+    var senv$1 = _senv;
+    if (senv$1) {
+      var x = senv$1.hd;
+      if (x) {
+        if (x._0 === s) {
+          return acc;
+        }
+        _acc = acc + 1 | 0;
+        _senv = senv$1.tl;
+        continue ;
+      }
+      _acc = acc + 1 | 0;
+      _senv = senv$1.tl;
+      continue ;
+    }
+    throw {
+          RE_EXN_ID: "Not_found",
+          Error: new Error()
+        };
+  };
+}
+
+function scompile$1(expr) {
+  var go = function (expr, senv) {
+    switch (expr.TAG | 0) {
+      case /* Cst */0 :
+          return {
+                  hd: {
+                    TAG: /* Cst */0,
+                    _0: expr._0
+                  },
+                  tl: /* [] */0
+                };
+      case /* Add */1 :
+          return Belt_List.concatMany([
+                      go(expr._0, senv),
+                      go(expr._1, {
+                            hd: /* Stmp */0,
+                            tl: senv
+                          }),
+                      {
+                        hd: /* Add */0,
+                        tl: /* [] */0
+                      }
+                    ]);
+      case /* Mul */2 :
+          return Belt_List.concatMany([
+                      go(expr._0, senv),
+                      go(expr._1, {
+                            hd: /* Stmp */0,
+                            tl: senv
+                          }),
+                      {
+                        hd: /* Mul */1,
+                        tl: /* [] */0
+                      }
+                    ]);
+      case /* Var */3 :
+          return {
+                  hd: {
+                    TAG: /* Var */1,
+                    _0: sindex$1(senv, expr._0)
+                  },
+                  tl: /* [] */0
+                };
+      case /* Let */4 :
+          return Belt_List.concatMany([
+                      go(expr._1, senv),
+                      go(expr._2, {
+                            hd: /* Slocal */{
+                              _0: expr._0
+                            },
+                            tl: senv
+                          }),
+                      {
+                        hd: /* Swap */3,
+                        tl: {
+                          hd: /* Pop */2,
+                          tl: /* [] */0
+                        }
+                      }
+                    ]);
+      
+    }
+  };
+  return go(expr, /* [] */0);
+}
+
+var ExprToStackMV = {
+  sindex: sindex$1,
+  scompile: scompile$1
+};
+
+function test_convert(src) {
+  var computed = $$eval$1(compile1(src, /* [] */0), /* [] */0);
+  if (computed === $$eval(src, /* [] */0)) {
+    return ;
   }
+  throw {
+        RE_EXN_ID: "Assert_failure",
+        _1: [
+          "Tiny1.res",
+          179,
+          4
+        ],
+        Error: new Error()
+      };
 }
 
 function test_compile(src) {
-  var compiled = compile2(compile1(src, /* [] */0));
+  var compiled = scompile(compile1(src, /* [] */0));
   var computed = $$eval$2(compiled, /* [] */0);
   console.log("" + computed);
   if (computed === $$eval(src, /* [] */0)) {
@@ -315,7 +446,7 @@ function test_compile(src) {
         RE_EXN_ID: "Assert_failure",
         _1: [
           "Tiny1.res",
-          118,
+          186,
           4
         ],
         Error: new Error()
@@ -323,7 +454,7 @@ function test_compile(src) {
 }
 
 function test_compile2(src) {
-  var compiled = compile3(src, /* [] */0);
+  var compiled = scompile$1(src);
   var computed = $$eval$2(compiled, /* [] */0);
   console.log("" + computed);
   if (computed === $$eval(src, /* [] */0)) {
@@ -333,7 +464,7 @@ function test_compile2(src) {
         RE_EXN_ID: "Assert_failure",
         _1: [
           "Tiny1.res",
-          125,
+          193,
           4
         ],
         Error: new Error()
@@ -532,11 +663,19 @@ var tests = [
   }
 ];
 
+function test_convert$1(param) {
+  Belt_Array.forEachWithIndex(tests, (function (i, t) {
+          test_convert(t);
+          var i$1 = i + 1 | 0;
+          console.log("Test Convert: test", i$1, "passed");
+        }));
+}
+
 function test1(param) {
   Belt_Array.forEachWithIndex(tests, (function (i, t) {
           test_compile(t);
           var i$1 = i + 1 | 0;
-          console.log("Test1: test " + i$1 + " passed");
+          console.log("Test1: test", i$1, "passed");
         }));
 }
 
@@ -544,7 +683,7 @@ function test2(param) {
   Belt_Array.forEachWithIndex(tests, (function (i, t) {
           test_compile2(t);
           var i$1 = i + 1 | 0;
-          console.log("Test1: test " + i$1 + " passed");
+          console.log("Test2: test", i$1, "passed");
         }));
 }
 
@@ -552,209 +691,16 @@ var Test1 = {
   test_compile: test_compile,
   test_compile2: test_compile2,
   tests: tests,
+  test_convert: test_convert$1,
   test1: test1,
   test2: test2
 };
 
+test_convert$1(undefined);
+
 test1(undefined);
 
 test2(undefined);
-
-function sindex(senv, i) {
-  var _senv = senv;
-  var _i = i;
-  var _acc = 0;
-  while(true) {
-    var acc = _acc;
-    var i$1 = _i;
-    var senv$1 = _senv;
-    if (senv$1) {
-      if (senv$1.hd) {
-        _acc = acc + 1 | 0;
-        _senv = senv$1.tl;
-        continue ;
-      }
-      if (i$1 === 0) {
-        return acc;
-      }
-      _acc = acc + 1 | 0;
-      _i = i$1 - 1 | 0;
-      _senv = senv$1.tl;
-      continue ;
-    }
-    throw {
-          RE_EXN_ID: "Not_found",
-          Error: new Error()
-        };
-  };
-}
-
-function scompile(expr) {
-  var go = function (expr, senv) {
-    switch (expr.TAG | 0) {
-      case /* Cst */0 :
-          return {
-                  hd: {
-                    TAG: /* Cst */0,
-                    _0: expr._0
-                  },
-                  tl: /* [] */0
-                };
-      case /* Add */1 :
-          return Belt_List.concatMany([
-                      go(expr._0, senv),
-                      go(expr._1, {
-                            hd: /* Stmp */1,
-                            tl: senv
-                          }),
-                      {
-                        hd: /* Add */0,
-                        tl: /* [] */0
-                      }
-                    ]);
-      case /* Mul */2 :
-          return Belt_List.concatMany([
-                      go(expr._0, senv),
-                      go(expr._1, {
-                            hd: /* Stmp */1,
-                            tl: senv
-                          }),
-                      {
-                        hd: /* Mul */1,
-                        tl: /* [] */0
-                      }
-                    ]);
-      case /* Var */3 :
-          return {
-                  hd: {
-                    TAG: /* Var */1,
-                    _0: sindex(senv, expr._0)
-                  },
-                  tl: /* [] */0
-                };
-      case /* Let */4 :
-          return Belt_List.concatMany([
-                      go(expr._0, senv),
-                      go(expr._1, {
-                            hd: /* Slocal */0,
-                            tl: senv
-                          }),
-                      {
-                        hd: /* Swap */3,
-                        tl: {
-                          hd: /* Pop */2,
-                          tl: /* [] */0
-                        }
-                      }
-                    ]);
-      
-    }
-  };
-  return go(expr, /* [] */0);
-}
-
-var NamelessToStackVM = {
-  sindex: sindex,
-  scompile: scompile
-};
-
-function sindex$1(senv, s) {
-  var _senv = senv;
-  var _acc = 0;
-  while(true) {
-    var acc = _acc;
-    var senv$1 = _senv;
-    if (senv$1) {
-      var x = senv$1.hd;
-      if (x) {
-        if (x._0 === s) {
-          return acc;
-        }
-        _acc = acc + 1 | 0;
-        _senv = senv$1.tl;
-        continue ;
-      }
-      _acc = acc + 1 | 0;
-      _senv = senv$1.tl;
-      continue ;
-    }
-    throw {
-          RE_EXN_ID: "Not_found",
-          Error: new Error()
-        };
-  };
-}
-
-function scompile$1(expr) {
-  var go = function (expr, senv) {
-    switch (expr.TAG | 0) {
-      case /* Cst */0 :
-          return {
-                  hd: {
-                    TAG: /* Cst */0,
-                    _0: expr._0
-                  },
-                  tl: /* [] */0
-                };
-      case /* Add */1 :
-          return Belt_List.concatMany([
-                      go(expr._0, senv),
-                      go(expr._1, {
-                            hd: /* Stmp */0,
-                            tl: senv
-                          }),
-                      {
-                        hd: /* Add */0,
-                        tl: /* [] */0
-                      }
-                    ]);
-      case /* Mul */2 :
-          return Belt_List.concatMany([
-                      go(expr._0, senv),
-                      go(expr._1, {
-                            hd: /* Stmp */0,
-                            tl: senv
-                          }),
-                      {
-                        hd: /* Mul */1,
-                        tl: /* [] */0
-                      }
-                    ]);
-      case /* Var */3 :
-          return {
-                  hd: {
-                    TAG: /* Var */1,
-                    _0: sindex$1(senv, expr._0)
-                  },
-                  tl: /* [] */0
-                };
-      case /* Let */4 :
-          return Belt_List.concatMany([
-                      go(expr._1, senv),
-                      go(expr._2, {
-                            hd: /* Slocal */{
-                              _0: expr._0
-                            },
-                            tl: senv
-                          }),
-                      {
-                        hd: /* Swap */3,
-                        tl: {
-                          hd: /* Pop */2,
-                          tl: /* [] */0
-                        }
-                      }
-                    ]);
-      
-    }
-  };
-  return go(expr, /* [] */0);
-}
-
-var ExprToStackMV = {
-  sindex: sindex$1,
-  scompile: scompile$1
-};
 
 var app = List.append;
 
@@ -763,15 +709,14 @@ var concatMany = Belt_List.concatMany;
 export {
   Expr1 ,
   Nameless ,
+  Indexed ,
   index ,
   compile1 ,
   Instr1 ,
   app ,
-  compile2 ,
-  compile3 ,
-  Test1 ,
   concatMany ,
   NamelessToStackVM ,
   ExprToStackMV ,
+  Test1 ,
 }
 /*  Not a pure module */

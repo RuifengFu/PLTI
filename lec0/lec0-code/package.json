@@ -2,5 +2,9 @@
   "type" : "module",
   "dependencies": {
     "rescript": "^10.1.4"
+  },
+  "scripts": {
+    "res:build": "rescript",
+    "res:start": "rescript build -w"
   }
 }
